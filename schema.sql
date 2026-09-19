@@ -4,12 +4,8 @@ create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text unique not null,
   bio text default '',
-  avatar_url text default '',
   created_at timestamptz default now()
 );
-
--- ถ้าตารางนี้มีอยู่แล้วจากก่อนหน้านี้ ให้รันบรรทัดนี้เพิ่มเพื่อเติมคอลัมน์ avatar_url:
--- alter table profiles add column if not exists avatar_url text default '';
 
 create table if not exists links (
   id uuid primary key default gen_random_uuid(),
