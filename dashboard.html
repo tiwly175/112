@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HACKER.AI — Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ====================== แก้ 3 บรรทัดนี้ก่อนใช้งาน ====================== */
+  /* 1) SUPABASE_URL / ANON_KEY: Project Settings > API ในหน้า supabase.com  */
+  /* 2) EDGE_FUNCTION_URL: URL ของ Edge Function "ai" หลัง deploy แล้ว       */
+  /* ======================================================================= */
+  :root{
+    --bg:#050706; --panel:#0a0f0c; --line: rgba(57,255,20,.28);
+    --green:#39ff14; --green-dim: rgba(57,255,20,.55);
+    --cyan:#00e5ff; --text:#c9ffd8; --text-dim: rgba(201,255,216,.55);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;background:var(--bg);}
+  body{font-family:'JetBrains Mono',monospace;color:var(--text);}
+  .panel{background:rgba(8,12,9,.86);border:1px solid var(--line);border-radius:10px;}
+  input,textarea{background:transparent;border:1px solid rgba(57,255,20,.4);border-radius:6px;color:var(--text);padding:8px 10px;font-family:inherit;font-size:13px;outline:none;}
+  input:focus,textarea:focus{border-color:var(--green);}
+  .btn{background:var(--green);color:#04140a;font-weight:700;border:none;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit;}
+  .btn:hover{box-shadow:0 0 18px rgba(57,255,20,.5);}
+  .btn-outline{background:transparent;color:var(--green);border:1px solid var(--green-dim);border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit;}
+  .glow{text-shadow:0 0 12px rgba(57,255,20,.55);}
+  ::-webkit-scrollbar{width:7px;} ::-webkit-scrollbar-thumb{background:var(--green-dim);border-radius:4px;}
+  #app{max-width:1100px;margin:0 auto;padding:24px;}
+  .hide{display:none !important;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- LOGIN VIEW -->
+  <div id="loginView" class="panel" style="max-width:380px;margin:80px auto;padding:32px;">
+    <h1 class="glow" style="color:var(--green);text-align:center;margin-bottom:20px;">&gt; LOGIN</h1>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <input id="email" placeholder="email">
+      <input id="password" type="password" placeholder="password">
+      <button class="btn" onclick="signIn()">เข้าสู่ระบบ</button>
+      <button class="btn-outline" onclick="signUp()">สมัครสมาชิกใหม่</button>
+      <p id="loginStatus" style="font-size:11px;color:var(--text-dim);min-height:16px;"></p>
+    </div>
+  </div>
+
+  <!-- DASHBOARD VIEW -->
+  <div id="dashView" class="hide">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h1 class="glow" style="color:var(--green);">HACKER.AI // DASHBOARD</h1>
+      <button class="btn-outline" onclick="signOut()">ออกจากระบบ</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <!-- PROFILE -->
+      <div class="panel" style="padding:20px;">
+        <h2 style="color:var(--green);margin:0 0 14px;">&gt; PROFILE</h2>
+        <label style="font-size:11px;color:var(--text-dim);">username (จะเป็น URL หน้า bio ของคุณ)</label>
+        <input id="username" style="width:100%;margin:6px 0 12px;">
+        <label style="font-size:11px;color:var(--text-dim);">รูปโปรไฟล์ (ใส่ลิงก์รูปภาพ เช่นจาก imgur, postimages, หรือ URL รูปที่มีอยู่แล้ว — เว้นว่างไว้ถ้าอยากใช้ไอคอนหัวกะโหลกเหมือนเดิม)</label>
+        <input id="avatarUrl" style="width:100%;margin:6px 0 12px;" placeholder="https://...jpg">
+        <label style="font-size:11px;color:var(--text-dim);">bio</label>
+        <textarea id="bio" rows="3" style="width:100%;margin:6px 0 12px;"></textarea>
+        <label style="font-size:11px;color:var(--text-dim);">links</label>
+        <div id="linksBox" style="display:flex;flex-direction:column;gap:8px;margin:6px 0 12px;"></div>
+        <button class="btn-outline" style="width:100%;margin-bottom:12px;" onclick="addLinkRow()">+ add link</button>
+        <button class="btn" style="width:100%;" onclick="saveProfile()">บันทึก</button>
+        <p id="saveStatus" style="font-size:11px;color:var(--text-dim);min-height:16px;margin-top:8px;"></p>
+      </div>
+
+      <!-- AI -->
+      <div class="panel" style="padding:20px;display:flex;flex-direction:column;">
+        <h2 style="color:var(--green);margin:0 0 14px;">&gt; AI ASSISTANT</h2>
+        <div id="aiThread" style="flex:1;overflow-y:auto;max-height:360px;display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+        <div style="display:flex;gap:8px;">
+          <input id="aiPrompt" style="flex:1;" placeholder="เช่น ช่วยร่าง bio ให้ดูเป็นนักพัฒนาสายแฮก" onkeydown="if(event.key==='Enter')askAI()">
+          <button class="btn" onclick="askAI()">RUN</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====================== ตั้งค่าตรงนี้ ======================
+const SUPABASE_URL = 'https://lrsahfroyqjkhwpoblue.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxyc2FoZnJveXFqa2h3cG9ibHVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4MTA1NTUsImV4cCI6MjEwNTM4NjU1NX0.U9ruZZhuAPCKgnImwH8vdCo9Hd8onmWD92OC7vLqhXo';
+const EDGE_FUNCTION_URL = 'https://lrsahfroyqjkhwpoblue.functions.supabase.co/ai';
+// ============================================================
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentUser = null;
+let links = [{label:'',url:''}];
+
+function renderLinks(){
+  const box = document.getElementById('linksBox');
+  box.innerHTML = '';
+  links.forEach((l, i) => {
+    const row = document.createElement('div');
+    row.style.display = 'flex'; row.style.gap = '8px';
+    row.innerHTML = `
+      <input style="flex:1" placeholder="label" value="${l.label||''}" onchange="links[${i}].label=this.value">
+      <input style="flex:2" placeholder="https://" value="${l.url||''}" onchange="links[${i}].url=this.value">`;
+    box.appendChild(row);
+  });
+}
+function addLinkRow(){ links.push({label:'',url:''}); renderLinks(); }
+
+async function signIn(){
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  document.getElementById('loginStatus').innerText = '[PROCESSING] กำลังเข้าสู่ระบบ...';
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) return document.getElementById('loginStatus').innerText = '[ERROR] ' + error.message;
+  initDashboard();
+}
+async function signUp(){
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  document.getElementById('loginStatus').innerText = '[PROCESSING] กำลังสมัครสมาชิก...';
+  const { error } = await sb.auth.signUp({ email, password });
+  if (error) return document.getElementById('loginStatus').innerText = '[ERROR] ' + error.message;
+  document.getElementById('loginStatus').innerText = '[SUCCESS] เช็คอีเมลเพื่อยืนยันบัญชี แล้วกลับมาล็อกอิน';
+}
+async function signOut(){
+  await sb.auth.signOut();
+  location.reload();
+}
+
+async function initDashboard(){
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return;
+  currentUser = user;
+  document.getElementById('loginView').classList.add('hide');
+  document.getElementById('dashView').classList.remove('hide');
+
+  const { data: profile } = await sb.from('profiles').select('username,bio,avatar_url').eq('id', user.id).maybeSingle();
+  if (profile){
+    document.getElementById('username').value = profile.username || '';
+    document.getElementById('bio').value = profile.bio || '';
+    document.getElementById('avatarUrl').value = profile.avatar_url || '';
+  }
+  const { data: linkRows } = await sb.from('links').select('label,url').eq('profile_id', user.id).order('position');
+  if (linkRows && linkRows.length) links = linkRows;
+  renderLinks();
+}
+
+async function saveProfile(){
+  if (!currentUser) return;
+  const status = document.getElementById('saveStatus');
+  status.innerText = '[PROCESSING] กำลังบันทึก...';
+  const username = document.getElementById('username').value.trim();
+  const bio = document.getElementById('bio').value;
+  const avatar_url = document.getElementById('avatarUrl').value.trim();
+
+  await sb.from('profiles').upsert({ id: currentUser.id, username, bio, avatar_url });
+  await sb.from('links').delete().eq('profile_id', currentUser.id);
+  const rows = links.filter(l=>l.label && l.url).map((l,i)=>({profile_id: currentUser.id, label:l.label, url:l.url, position:i}));
+  if (rows.length) await sb.from('links').insert(rows);
+
+  status.innerText = '[SUCCESS] บันทึกแล้ว — เปิดดูที่ bio.html?u=' + username;
+}
+
+function addAiMsg(role, text){
+  const thread = document.getElementById('aiThread');
+  const div = document.createElement('div');
+  div.style.cssText = 'font-size:13px;padding:8px;border-radius:6px;border:1px solid ' + (role==='you' ? 'rgba(0,229,255,.5);color:#00e5ff' : 'rgba(57,255,20,.4);color:#c9ffd8');
+  div.innerText = text;
+  thread.appendChild(div);
+  thread.scrollTop = thread.scrollHeight;
+}
+
+async function askAI(){
+  const input = document.getElementById('aiPrompt');
+  const prompt = input.value.trim();
+  if (!prompt) return;
+  addAiMsg('you', prompt);
+  input.value = '';
+
+  try{
+    const res = await fetch(EDGE_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, currentBio: document.getElementById('bio').value })
+    });
+    const data = await res.json();
+    addAiMsg('ai', data.reply || '[ERROR] ไม่มีคำตอบ');
+    if (data.suggestedBio) document.getElementById('bio').value = data.suggestedBio;
+  }catch(e){
+    addAiMsg('ai', '[ERROR] เรียก AI ไม่สำเร็จ — เช็คว่า deploy Edge Function แล้วหรือยัง');
+  }
+}
+
+sb.auth.getUser().then(({data:{user}}) => { if (user) initDashboard(); });
+renderLinks();
+</script>
+</body>
+</html>

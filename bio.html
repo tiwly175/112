@@ -49,7 +49,10 @@
     <span class="tdot" style="background:#ff5f56"></span>
     <span class="tdot" style="background:#ffbd2e"></span>
     <span class="tdot" style="background:#27c93f"></span>
-    <span id="titleUser" style="font-size:10px;color:var(--text-dim);margin-left:6px;margin-top:1px;">user@hacker-bio:~</span>
+    <span style="display:inline-flex;align-items:center;gap:5px;margin-left:6px;">
+      <span style="width:6px;height:6px;border-radius:999px;background:var(--green);box-shadow:0 0 6px var(--green);"></span>
+      <span id="titleUser" style="font-size:10px;letter-spacing:.12em;color:var(--text-dim);">CONNECTING...</span>
+    </span>
   </div>
   <div id="content" style="padding:32px 28px;display:flex;flex-direction:column;align-items:center;text-align:center;">
     <p style="color:var(--text-dim)">[LOADING...]</p>
@@ -73,21 +76,36 @@ async function loadProfile(){
     return;
   }
 
-  const { data: profile } = await sb.from('profiles').select('id,username,bio').eq('username', username).maybeSingle();
+  const { data: profile } = await sb.from('profiles').select('id,username,bio,avatar_url').eq('username', username).maybeSingle();
   if (!profile){
     content.innerHTML = '<p style="color:var(--text-dim)">[404] ไม่พบผู้ใช้นี้</p>';
     return;
   }
-  document.getElementById('titleUser').innerText = profile.username + '@hacker-bio:~';
+  document.getElementById('titleUser').innerText = 'SECURE_SESSION';
 
   const { data: linkRows } = await sb.from('links').select('label,url').eq('profile_id', profile.id).order('position');
 
-  let linksHtml = (linkRows || []).map(l =>
-    `<a href="${l.url}" target="_blank" class="link-row"><span>&gt; ${l.label}</span><span style="opacity:.5">↗</span></a>`
-  ).join('');
+  function faviconFor(url){
+    try{
+      const host = new URL(url).hostname;
+      return `https://www.google.com/s2/favicons?sz=64&domain=${host}`;
+    }catch(e){ return ''; }
+  }
+
+  let linksHtml = (linkRows || []).map(l => {
+    const icon = faviconFor(l.url);
+    const iconHtml = icon
+      ? `<img src="${icon}" alt="" style="width:18px;height:18px;border-radius:4px;flex-shrink:0;" onerror="this.style.display='none'">`
+      : '';
+    return `<a href="${l.url}" target="_blank" class="link-row"><span style="display:flex;align-items:center;gap:8px;">${iconHtml}&gt; ${l.label}</span><span style="opacity:.5">↗</span></a>`;
+  }).join('');
+
+  const avatarHtml = profile.avatar_url
+    ? `<img src="${profile.avatar_url}" alt="" class="avatar" style="object-fit:cover;" onerror="this.outerHTML='<div class=&quot;avatar&quot;>💀</div>'">`
+    : `<div class="avatar">💀</div>`;
 
   content.innerHTML = `
-    <div class="avatar">💀</div>
+    ${avatarHtml}
     <h1 style="font-size:22px;font-weight:700;color:var(--green);letter-spacing:.08em;margin:16px 0 2px;text-shadow:0 0 12px rgba(57,255,20,.55);">&gt; ${profile.username}</h1>
     <p style="font-size:13px;color:var(--text-dim);line-height:1.7;margin:0 0 26px;white-space:pre-line;">${profile.bio || ''}</p>
     <div style="width:100%;display:flex;flex-direction:column;gap:10px;">${linksHtml}</div>
