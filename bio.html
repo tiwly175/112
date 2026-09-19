@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bio</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#030503; --panel:#080c09; --line: rgba(57,255,20,.32);
+    --green:#39ff14; --green-dim: rgba(57,255,20,.55);
+    --cyan:#00e5ff; --text:#d5ffe0; --text-dim: rgba(213,255,224,.55);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;}
+  body{
+    font-family:'JetBrains Mono', monospace; color:var(--text); background:var(--bg);
+    display:flex; align-items:center; justify-content:center; min-height:100vh; overflow-x:hidden; padding:24px;
+  }
+  #rain{ position:fixed; inset:0; z-index:1; opacity:.55; }
+  body::before{
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:2;
+    background: radial-gradient(circle at 50% 20%, rgba(3,5,3,.15), rgba(3,5,3,.85) 70%);
+  }
+  .card{
+    position:relative; z-index:5; width:100%; max-width:420px;
+    background: rgba(6,10,7,.88); border:1px solid var(--line);
+    box-shadow: 0 0 40px rgba(57,255,20,.12); border-radius:10px; overflow:hidden;
+  }
+  .titlebar{ display:flex; gap:6px; padding:10px 12px; border-bottom:1px solid var(--line); background: rgba(57,255,20,.05); }
+  .tdot{ width:9px; height:9px; border-radius:999px; }
+  .avatar{
+    width:84px; height:84px; border-radius:999px; display:flex; align-items:center; justify-content:center;
+    border:2px solid var(--green); box-shadow: 0 0 18px rgba(57,255,20,.45); font-size:34px; background:#04120a;
+  }
+  .link-row{
+    display:flex; align-items:center; justify-content:space-between;
+    border:1px solid var(--green-dim); border-radius:6px; padding:12px 14px;
+    color:var(--green); text-decoration:none; transition: border-color .15s, background .15s;
+  }
+  a.link-row:hover{ border-color: var(--green); background: rgba(57,255,20,.07); }
+</style>
+</head>
+<body>
+<canvas id="rain"></canvas>
+<div class="card">
+  <div class="titlebar">
+    <span class="tdot" style="background:#ff5f56"></span>
+    <span class="tdot" style="background:#ffbd2e"></span>
+    <span class="tdot" style="background:#27c93f"></span>
+    <span id="titleUser" style="font-size:10px;color:var(--text-dim);margin-left:6px;margin-top:1px;">user@hacker-bio:~</span>
+  </div>
+  <div id="content" style="padding:32px 28px;display:flex;flex-direction:column;align-items:center;text-align:center;">
+    <p style="color:var(--text-dim)">[LOADING...]</p>
+  </div>
+</div>
+
+<script>
+// ====================== ตั้งค่าตรงนี้ (ค่าเดียวกับ dashboard.html) ======================
+const SUPABASE_URL = 'https://lrsahfroyqjkhwpoblue.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxyc2FoZnJveXFqa2h3cG9ibHVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4MTA1NTUsImV4cCI6MjEwNTM4NjU1NX0.U9ruZZhuAPCKgnImwH8vdCo9Hd8onmWD92OC7vLqhXo';
+// ==========================================================================================
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function loadProfile(){
+  const params = new URLSearchParams(location.search);
+  const username = params.get('u');
+  const content = document.getElementById('content');
+  if (!username){
+    content.innerHTML = '<p style="color:var(--text-dim)">[ERROR] ใส่ ?u=username ต่อท้าย URL</p>';
+    return;
+  }
+
+  const { data: profile } = await sb.from('profiles').select('id,username,bio').eq('username', username).maybeSingle();
+  if (!profile){
+    content.innerHTML = '<p style="color:var(--text-dim)">[404] ไม่พบผู้ใช้นี้</p>';
+    return;
+  }
+  document.getElementById('titleUser').innerText = profile.username + '@hacker-bio:~';
+
+  const { data: linkRows } = await sb.from('links').select('label,url').eq('profile_id', profile.id).order('position');
+
+  let linksHtml = (linkRows || []).map(l =>
+    `<a href="${l.url}" target="_blank" class="link-row"><span>&gt; ${l.label}</span><span style="opacity:.5">↗</span></a>`
+  ).join('');
+
+  content.innerHTML = `
+    <div class="avatar">💀</div>
+    <h1 style="font-size:22px;font-weight:700;color:var(--green);letter-spacing:.08em;margin:16px 0 2px;text-shadow:0 0 12px rgba(57,255,20,.55);">&gt; ${profile.username}</h1>
+    <p style="font-size:13px;color:var(--text-dim);line-height:1.7;margin:0 0 26px;white-space:pre-line;">${profile.bio || ''}</p>
+    <div style="width:100%;display:flex;flex-direction:column;gap:10px;">${linksHtml}</div>
+    <div style="margin-top:26px;font-size:10px;color:rgba(213,255,224,.3);letter-spacing:.08em;">SYSTEM v1.0.0 // CONNECTION SECURE</div>
+  `;
+}
+loadProfile();
+
+(function(){
+  var canvas = document.getElementById('rain');
+  var ctx = canvas.getContext('2d');
+  var chars = 'アイウエオカキクケコサシスセソ01234567890$#%&+=ｦｧｨｩｪｫｬｭｮｯ'.split('');
+  var fontSize = 15, columns, drops, w, h;
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function resize(){
+    w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight;
+    columns = Math.floor(w / fontSize);
+    drops = new Array(columns).fill(0).map(()=> Math.random() * -50);
+  }
+  window.addEventListener('resize', resize); resize();
+  function draw(){
+    ctx.fillStyle = 'rgba(3,5,3,0.18)'; ctx.fillRect(0,0,w,h);
+    ctx.font = fontSize + 'px monospace';
+    for (var i=0;i<drops.length;i++){
+      var text = chars[Math.floor(Math.random()*chars.length)];
+      var x = i*fontSize, y = drops[i]*fontSize;
+      ctx.fillStyle = Math.random() > 0.97 ? '#eaffea' : 'rgba(57,255,20,0.75)';
+      ctx.fillText(text, x, y);
+      if (y > h && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }
+  if (!reduceMotion){ setInterval(draw, 55); } else { ctx.fillStyle='#030503'; ctx.fillRect(0,0,w,h); }
+})();
+</script>
+</body>
+</html>
