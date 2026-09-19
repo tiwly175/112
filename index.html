@@ -155,12 +155,28 @@ async function saveProfile(){
   const bio = document.getElementById('bio').value;
   const avatar_url = document.getElementById('avatarUrl').value.trim();
 
-  await sb.from('profiles').upsert({ id: currentUser.id, username, bio, avatar_url });
-  await sb.from('links').delete().eq('profile_id', currentUser.id);
-  const rows = links.filter(l=>l.label && l.url).map((l,i)=>({profile_id: currentUser.id, label:l.label, url:l.url, position:i}));
-  if (rows.length) await sb.from('links').insert(rows);
+  const { error: profileErr } = await sb.from('profiles').upsert({ id: currentUser.id, username, bio, avatar_url });
+  if (profileErr){
+    status.innerText = '[ERROR] บันทึกโปรไฟล์ไม่สำเร็จ: ' + profileErr.message;
+    return;
+  }
 
-  status.innerText = '[SUCCESS] บันทึกแล้ว — เปิดดูที่ bio.html?u=' + username;
+  const { error: delErr } = await sb.from('links').delete().eq('profile_id', currentUser.id);
+  if (delErr){
+    status.innerText = '[ERROR] ลบลิงก์เก่าไม่สำเร็จ: ' + delErr.message;
+    return;
+  }
+
+  const rows = links.filter(l=>l.label && l.url).map((l,i)=>({profile_id: currentUser.id, label:l.label, url:l.url, position:i}));
+  if (rows.length){
+    const { error: insErr } = await sb.from('links').insert(rows);
+    if (insErr){
+      status.innerText = '[ERROR] บันทึกลิงก์ไม่สำเร็จ: ' + insErr.message;
+      return;
+    }
+  }
+
+  status.innerText = '[SUCCESS] บันทึกแล้ว (' + rows.length + ' ลิงก์) — เปิดดูที่ bio.html?u=' + username;
 }
 
 function addAiMsg(role, text){
